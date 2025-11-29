@@ -1,0 +1,33 @@
+name: parental-control
+
+services:
+  redis:
+    image: redis:8.0.2-alpine3.21
+    container_name: parental-control-redis
+    ports:
+      - "${REDIS_PORT}:6379"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: [ "redis-server","--requirepass","${REDIS_PASSWORD}" ]
+    networks:
+      - parental-control-networks
+    restart: always
+
+  parental-control:
+    image: bravos/parental-control:latest
+    container_name: parental-control
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - PARENTAL_CONTROL_PASSWORD_HASH=${PARENTAL_CONTROL_PASSWORD_HASH}
+    depends_on:
+      - redis
+    networks:
+      - parental-control-networks
+
+
+networks:
+  parental-control-networks:
