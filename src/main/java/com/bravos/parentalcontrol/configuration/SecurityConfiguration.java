@@ -42,13 +42,25 @@ public class SecurityConfiguration {
 
   @Bean
   public CorsConfigurationSource corsConfigurationSource() {
-    CorsConfiguration config = new CorsConfiguration();
-    String[] allowOrigins = System.getenv("ALLOW_ORIGINS").split(",");
-    config.setAllowedOrigins(Arrays.stream(allowOrigins).toList());
-    config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE","OPTIONS"));
-    config.setAllowedHeaders(List.of("*"));
+    CorsConfiguration httpConfig = new CorsConfiguration();
+    String allowEnv = System.getenv("ALLOW_ORIGINS");
+    List<String> httpOrigins = (allowEnv == null || allowEnv.isBlank())
+        ? List.of()
+        : Arrays.stream(allowEnv.split(",")).map(String::trim).toList();
+    httpConfig.setAllowedOrigins(httpOrigins);
+    httpConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+    httpConfig.setAllowedHeaders(List.of("*"));
+    httpConfig.setAllowCredentials(true);
+
+    CorsConfiguration wsConfig = new CorsConfiguration();
+    wsConfig.setAllowedOriginPatterns(List.of("*"));
+    wsConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
+    wsConfig.setAllowedHeaders(List.of("*"));
+    wsConfig.setAllowCredentials(true);
+
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    source.registerCorsConfiguration("/**", config);
+    source.registerCorsConfiguration("/ws/**", wsConfig);
+    source.registerCorsConfiguration("/**", httpConfig);
     return source;
   }
 
