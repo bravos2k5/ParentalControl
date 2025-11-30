@@ -23,11 +23,11 @@ services:
       - REDIS_PORT=${REDIS_PORT}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - PARENTAL_CONTROL_PASSWORD_HASH=${PARENTAL_CONTROL_PASSWORD_HASH}
+      - ALLOW_ORIGINS=${ALLOW_ORIGINS}
     depends_on:
       - redis
     networks:
       - parental-control-networks
-
 
 networks:
   parental-control-networks:
