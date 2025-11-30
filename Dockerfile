@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21-jdk AS build
+FROM eclipse-temurin:25-jdk AS build
 WORKDIR /app
 
 COPY gradlew gradlew.bat build.gradle.kts ./
@@ -10,7 +10,7 @@ RUN --mount=type=cache,target=/root/.gradle \
 
 RUN jdeps --ignore-missing-deps -q \
     --recursive \
-    --multi-release 21 \
+    --multi-release 25 \
     --print-module-deps \
     --class-path 'build/libs/*' \
     build/libs/parental-control.jar > deps.txt

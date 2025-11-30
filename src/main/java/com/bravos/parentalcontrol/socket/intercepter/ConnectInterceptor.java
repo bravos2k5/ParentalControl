@@ -28,8 +28,8 @@ public class ConnectInterceptor implements HandshakeInterceptor {
                                  @NonNull WebSocketHandler wsHandler,
                                  @NonNull Map<String, Object> attributes) {
 
-    String deviceId = request.getHeaders().getFirst("deviceId");
-    String deviceName = request.getHeaders().getFirst("deviceName");
+    String deviceId = request.getHeaders().getFirst("X-Device-Id");
+    String deviceName = request.getHeaders().getFirst("X-Device-Name");
 
     if(deviceId == null || deviceName == null) {
       return false;

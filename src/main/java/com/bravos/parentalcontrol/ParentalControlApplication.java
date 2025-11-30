@@ -9,7 +9,7 @@ import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoCon
 )
 public class ParentalControlApplication {
 
-	public static void main(String[] args) {
+	static void main(String[] args) {
 		SpringApplication.run(ParentalControlApplication.class, args);
 	}
 

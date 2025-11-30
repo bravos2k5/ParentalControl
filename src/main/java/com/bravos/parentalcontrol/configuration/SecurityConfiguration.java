@@ -1,6 +1,7 @@
 package com.bravos.parentalcontrol.configuration;
 
 import com.bravos.parentalcontrol.filter.AuthFilter;
+import com.bravos.parentalcontrol.filter.BenchmarkFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -16,7 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfiguration {
 
   @Bean
-  public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthFilter authFilter) {
+  public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthFilter authFilter, BenchmarkFilter benchmarkFilter) {
     http.authorizeHttpRequests((requests) -> requests
         .requestMatchers("/ws/**").permitAll()
         .anyRequest().authenticated());
@@ -27,6 +28,7 @@ public class SecurityConfiguration {
         .logout(AbstractHttpConfigurer::disable)
         .httpBasic(AbstractHttpConfigurer::disable);
     http.addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class);
+    http.addFilterAfter(benchmarkFilter, AuthFilter.class);
     return http.build();
   }
 
