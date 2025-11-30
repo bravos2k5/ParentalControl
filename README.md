@@ -13,6 +13,7 @@ The service exposes a simple REST API backed by Redis. **All HTTP REST endpoints
   - [Configuring the shared secret](#configuring-the-shared-secret)
   - [How clients authenticate](#how-clients-authenticate)
   - [Authentication failures](#authentication-failures)
+- [CORS & Allowed Origins](#cors--allowed-origins)
 - [Running the Service](#running-the-service)
   - [Prerequisites](#prerequisites)
   - [Run locally with Gradle](#run-locally-with-gradle)
@@ -105,6 +106,26 @@ If authentication fails:
 
 ---
 
+## CORS & Allowed Origins
+
+CORS for HTTP requests is configured in `SecurityConfiguration` via a `CorsConfigurationSource` bean that is applied to all routes (`/**`). This matters primarily for browser-based clients.
+
+- Allowed origins are controlled by the `ALLOW_ORIGINS` environment variable.
+  - It must be a **comma-separated list** of origins (no spaces), for example:
+    - `http://localhost:3000`
+    - `http://localhost:3000,http://192.168.1.10:8081`
+  - These values are split on `,` and directly used as `CorsConfiguration.setAllowedOrigins(...)`.
+- Allowed HTTP methods: `GET`, `POST`, `PUT`, `DELETE`, `OPTIONS`.
+- Allowed headers: `*` (all headers).
+
+Notes:
+
+- CORS is enforced by browsers, not by the server itself. Non-browser HTTP clients (curl, Postman, etc.) are unaffected by CORS and only need to satisfy authentication.
+- If `ALLOW_ORIGINS` is missing, empty, or misconfigured, you may see CORS errors in the browser (failed preflight or blocked cross-origin requests) even though the server is running correctly.
+- For local development, set `ALLOW_ORIGINS` to the exact origin(s) of your frontend, including scheme and port (for example: `http://localhost:3000`).
+
+---
+
 ## Running the Service
 
 ### Prerequisites
@@ -115,6 +136,7 @@ If authentication fails:
   - The Redis container from `docker-compose.yml`.
 - Environment variables:
   - `PARENTAL_CONTROL_PASSWORD_HASH` – required for any authenticated REST access.
+  - `ALLOW_ORIGINS` – required for browser-based clients so that CORS preflight and cross-origin requests succeed.
   - If using Docker/docker-compose: `REDIS_PORT`, `REDIS_PASSWORD` as described below.
 
 The application binds to port **8080** by default (see `application.properties`).
@@ -123,10 +145,11 @@ The application binds to port **8080** by default (see `application.properties`)
 
 From the project root (`/home/bravos/IdeaProjects/parental-control`):
 
-1. Export your shared secret hash:
+1. Export your shared secret hash and allowed origins:
 
    ```bash
    export PARENTAL_CONTROL_PASSWORD_HASH='YOUR_BCRYPT_HASH_HERE'
+   export ALLOW_ORIGINS='http://localhost:3000'
    ```
 
 2. Ensure Redis is running and reachable using its default configuration (or point the app to your Redis via additional Spring properties if needed).
@@ -164,6 +187,7 @@ The included `Dockerfile` builds a minimal image using a custom JRE and a distro
    ```bash
    docker run \
      -e PARENTAL_CONTROL_PASSWORD_HASH='YOUR_BCRYPT_HASH_HERE' \
+     -e ALLOW_ORIGINS='http://localhost:3000' \
      -p 8080:8080 \
      parental-control:latest
    ```
@@ -189,6 +213,7 @@ The `docker-compose.yml` file defines both **Redis** and the **parental-control*
     - `REDIS_PORT=${REDIS_PORT}`
     - `REDIS_PASSWORD=${REDIS_PASSWORD}`
     - `PARENTAL_CONTROL_PASSWORD_HASH=${PARENTAL_CONTROL_PASSWORD_HASH}`
+    - `ALLOW_ORIGINS=${ALLOW_ORIGINS}`
 
 Example usage:
 
@@ -196,6 +221,7 @@ Example usage:
 export REDIS_PORT=6379
 export REDIS_PASSWORD='your_redis_password'
 export PARENTAL_CONTROL_PASSWORD_HASH='YOUR_BCRYPT_HASH_HERE'
+export ALLOW_ORIGINS='http://localhost:3000'
 
 docker-compose up --build
 ```
@@ -213,6 +239,7 @@ Key configuration points:
   - `REDIS_HOST=redis`
   - `REDIS_PORT` and `REDIS_PASSWORD` from environment.
 - `PARENTAL_CONTROL_PASSWORD_HASH` – **must** be set for successful authentication.
+- `ALLOW_ORIGINS` – controls which browser origins are allowed to make cross-origin requests to this API (CORS).
 
 If you need to override any Spring Boot properties, you can use `application.properties`, environment variables, or command-line arguments as usual.
 
@@ -429,6 +456,11 @@ curl -X DELETE "http://localhost:8080/sessions" \
   - Verify that the `Authorization` header value you send is the **plain secret**, not the hash and not prefixed by `Bearer`.
   - Ensure line breaks or quotes are not accidentally included in the secret when exporting it.
 
+- **CORS errors in a browser client**
+  - Make sure `ALLOW_ORIGINS` is set and includes the exact origin (scheme + host + port) of your frontend application.
+  - Remember that `http://localhost:3000` and `http://127.0.0.1:3000` are different origins.
+  - Check that you are not including spaces in the comma-separated `ALLOW_ORIGINS` value.
+
 - **Redis connection errors**
   - If running locally, ensure a Redis server is running and reachable at the expected host and port.
   - If using docker-compose, verify the `redis` container is healthy and that `REDIS_PORT`/`REDIS_PASSWORD` environment variables are correctly set.
@@ -436,5 +468,4 @@ curl -X DELETE "http://localhost:8080/sessions" \
 - **Port conflicts**
   - The app listens on `8080` by default. Change `server.port` in `application.properties` or set the `SERVER_PORT` environment variable if needed.
 
-This README should give you enough context to run the service, configure authentication, and integrate with the REST API quickly.
-
+This README should give you enough context to run the service, configure authentication, CORS, and integrate with the REST API quickly.
