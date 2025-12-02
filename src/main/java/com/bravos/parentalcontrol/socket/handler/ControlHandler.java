@@ -5,6 +5,7 @@ import com.bravos.parentalcontrol.model.Session;
 import com.bravos.parentalcontrol.service.AccessService;
 import com.bravos.parentalcontrol.service.SessionService;
 import com.bravos.parentalcontrol.utils.DateTimeHelper;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Component;
@@ -13,7 +14,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 
 @Slf4j
 @Component
@@ -22,7 +23,11 @@ public class ControlHandler extends TextWebSocketHandler {
   private final SessionService sessionService;
   private final AccessService accessService;
 
-  private final Map<String, Thread> pingThreads = new ConcurrentHashMap<>();
+  private final Map<String, ScheduledFuture<?>> pingTasks = new ConcurrentHashMap<>();
+
+  private final ScheduledExecutorService pingScheduler = Executors.newSingleThreadScheduledExecutor();
+
+  private final ExecutorService virtualExecutor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().factory());
 
   public ControlHandler(SessionService sessionService, AccessService accessService) {
     this.sessionService = sessionService;
@@ -33,33 +38,16 @@ public class ControlHandler extends TextWebSocketHandler {
   protected void handleTextMessage(@NonNull WebSocketSession session,
                                    @NonNull TextMessage message) throws IOException {
     String content = message.getPayload();
-    String sessionId = session.getId();
-    if(content.startsWith("PASSWORD:")) {
-      String password = content.substring(9);
-      Integer timeGranted = accessService.verifyAccessRequest(sessionId, password);
-      if(timeGranted != null) {
-        session.sendMessage(new TextMessage("GRANTED:" + timeGranted));
-        Thread pingThread = pingThreads.get(sessionId);
-        if(pingThread != null) {
-          pingThread.interrupt();
-          pingThreads.remove(sessionId);
-        }
-        pingThread = startPingThread(session);
-        pingThreads.put(sessionId, pingThread);
-      } else {
-        session.sendMessage(new TextMessage("DENIED"));
-      }
+    if (content.startsWith("PASSWORD:")) {
+      this.checkPasswordHandler(session, content);
     } else if (content.startsWith("ping")) {
       session.sendMessage(new TextMessage("pong"));
     } else if (content.startsWith("BLOCKED")) {
-      pingThreads.computeIfPresent(sessionId, (k, v) -> {
-        v.interrupt();
-        return null;
-      });
-      pingThreads.remove(sessionId);
+      this.blockedHandler(session);
     } else {
       session.sendMessage(new TextMessage("UNKNOWN_COMMAND"));
     }
+    log.info("Received message from session {}: {}", session.getId(), content);
   }
 
   @Override
@@ -84,26 +72,68 @@ public class ControlHandler extends TextWebSocketHandler {
   @Override
   public void afterConnectionClosed(@NonNull WebSocketSession session,
                                     @NonNull CloseStatus status) {
-    pingThreads.computeIfPresent(session.getId(), (k, v) -> {
-      v.interrupt();
-      return null;
-    });
-    pingThreads.remove(session.getId());
+    ScheduledFuture<?> future = pingTasks.remove(session.getId());
+    if (future != null) {
+      future.cancel(true);
+    }
     sessionService.deleteSession(session.getId());
     log.info("Session closed: {}", session.getId());
   }
 
-  private Thread startPingThread(WebSocketSession session) {
-    return Thread.startVirtualThread(() -> {
-      try {
-        while (session.isOpen()) {
-          session.sendMessage(new PingMessage());
-          Thread.sleep(30000);
-        }
-      } catch (IOException | InterruptedException e) {
-        log.info("Ping thread stopped for session: {}", session.getId());
+  private void checkPasswordHandler(WebSocketSession session, String content) throws IOException {
+    String sessionId = session.getId();
+    String password = content.substring(9);
+    Integer timeGranted = accessService.verifyAccessRequest(sessionId, password);
+    if (timeGranted != null) {
+      session.sendMessage(new TextMessage("GRANTED:" + timeGranted));
+      ScheduledFuture<?> existing = pingTasks.remove(sessionId);
+      if (existing != null) {
+        existing.cancel(true);
       }
-    });
+      ScheduledFuture<?> future = startPingTask(session);
+      pingTasks.put(sessionId, future);
+    } else {
+      session.sendMessage(new TextMessage("DENIED"));
+    }
+  }
+
+  private void blockedHandler(WebSocketSession session) {
+    String sessionId = session.getId();
+    ScheduledFuture<?> future = pingTasks.remove(sessionId);
+    if (future != null) {
+      future.cancel(true);
+    }
+    pingTasks.remove(sessionId);
+  }
+
+  private ScheduledFuture<?> startPingTask(WebSocketSession session) {
+    return pingScheduler.scheduleAtFixedRate(() -> {
+      if (!session.isOpen()) {
+        ScheduledFuture<?> f = pingTasks.remove(session.getId());
+        if (f != null) f.cancel(false);
+        return;
+      }
+      virtualExecutor.execute(() -> {
+        try {
+          if (!session.isOpen()) return;
+          session.sendMessage(new PingMessage());
+        } catch (IOException e) {
+          log.info("Ping failed for session {}, cancelling task: {}", session.getId(), e.getMessage());
+          ScheduledFuture<?> f = pingTasks.remove(session.getId());
+          if (f != null) f.cancel(true);
+        } catch (Throwable t) {
+          log.warn("Unexpected error in ping task for session {}: {}", session.getId(), t.getMessage());
+          ScheduledFuture<?> f = pingTasks.remove(session.getId());
+          if (f != null) f.cancel(true);
+        }
+      });
+    }, 0, 60, TimeUnit.SECONDS);
+  }
+
+  @PreDestroy
+  public void shutdownScheduler() {
+    pingScheduler.shutdownNow();
+    virtualExecutor.shutdownNow();
   }
 
 }
