@@ -1,30 +1,83 @@
 package com.bravos.parentalcontrol.service;
 
-public interface AccessService {
+import com.bravos.parentalcontrol.entity.Session;
+import com.bravos.parentalcontrol.util.DateTimeHelper;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+
+@Service
+public class AccessService {
+  private final RedisTemplate<Object, Object> redisTemplate;
+  private final SessionService sessionService;
+
+  public AccessService(RedisTemplate<Object, Object> redisTemplate, SessionService sessionService) {
+    this.redisTemplate = redisTemplate;
+    this.sessionService = sessionService;
+  }
 
   /**
-   * Grant additional time to a device
+   * Grant access to the device for a specified number of seconds.
    * @param deviceId device identifier
-   * @param seconds number of seconds to grant
-   * @return password to unlock the device
+   * @param seconds number of seconds to grant access
    */
-  String grantTime(String deviceId, int seconds);
+  public void grantAccess(String deviceId, int seconds) {
+    Session session = sessionService.getSessionByDeviceId(deviceId);
+    sessionService.sendMessageToSession(session.getId(), "GRANTED:" + seconds);
+  }
 
   /**
-   * Block device after certain time
+   * Generate a time-limited access code for the device.
    * @param deviceId device identifier
-   * @param seconds number of seconds before blocking
+   * @param seconds validity duration in seconds
+   * @return the generated access code
    */
-  void blockAfterTime(String deviceId, int seconds);
-
-  Integer getRemainingBlockTime(String deviceId);
+  public String generateAccessCode(String deviceId, int seconds) {
+    Session session = sessionService.getSessionByDeviceId(deviceId);
+    if (session == null) {
+      throw new IllegalArgumentException("No active session for device: " + deviceId);
+    }
+    String code = String.valueOf((int) (Math.random() * 900000) + 100000);
+    String key = "time_grant:" + session.getId() + ":" + code;
+    Long expiration = DateTimeHelper.currentTimeMillis() + seconds * 1000L;
+    redisTemplate.opsForValue().set(key, expiration, Duration.ofSeconds(seconds));
+    return code;
+  }
 
   /**
-   * Verify access request
-   * @param sessionId session identifier
-   * @param code access code
-   * @return number of seconds granted, null if invalid
+   * Block the device after a specified number of seconds.
+   * @param deviceId device identifier
+   * @param seconds number of seconds after which to block the device
    */
-  Integer verifyAccessRequest(String sessionId, String code);
+  public void blockAfterTime(String deviceId, int seconds) {
+    Session session = sessionService.getSessionByDeviceId(deviceId);
+    if (session == null) {
+      throw new IllegalArgumentException("No active session for device: " + deviceId);
+    }
+    String key = "block_device:" + deviceId;
+    long lockTimestamp = DateTimeHelper.currentTimeMillis() + seconds * 1000L;
+    redisTemplate.opsForValue().set(key, lockTimestamp, Duration.ofSeconds(seconds));
+    sessionService.sendMessageToSession(session.getId(), "BLOCK:" + seconds);
+  }
 
+  public Long getRemainingBlockTime(String deviceId) {
+    var value = redisTemplate.opsForValue().get("block_device:" + deviceId);
+    if (value != null) {
+      long remainingMillis = (Long) value - DateTimeHelper.currentTimeMillis();
+      if (remainingMillis > 0) return remainingMillis / 1000;
+    }
+    return null;
+  }
+
+  public Integer verifyAccessRequest(String sessionId, String code) {
+    var value = redisTemplate.opsForValue().get("time_grant:" + sessionId + ":" + code);
+    if (value != null) {
+      long remainingMillis = (Long) value - DateTimeHelper.currentTimeMillis();
+      if (remainingMillis > 0) {
+        return (int) (remainingMillis / 1000);
+      }
+    }
+    return null;
+  }
 }

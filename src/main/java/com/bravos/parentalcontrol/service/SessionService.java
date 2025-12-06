@@ -1,27 +1,86 @@
 package com.bravos.parentalcontrol.service;
 
-import com.bravos.parentalcontrol.model.NewSessionRequest;
-import com.bravos.parentalcontrol.model.Session;
+import com.bravos.parentalcontrol.dto.request.NewSessionRequest;
+import com.bravos.parentalcontrol.entity.Session;
+import com.bravos.parentalcontrol.repository.SessionRepository;
+import com.bravos.parentalcontrol.util.DateTimeHelper;
+import com.bravos.parentalcontrol.websocket.WebSocketSessionManager;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.util.List;
 
-public interface SessionService {
+@Slf4j
+@Service
+public class SessionService {
 
-  Session createNewSession(NewSessionRequest request, WebSocketSession webSocketSession);
+  private final SessionRepository sessionRepository;
+  private final WebSocketSessionManager webSocketSessionManager;
 
-  List<Session> getAllSessions();
+  public SessionService(SessionRepository sessionRepository, WebSocketSessionManager webSocketSessionManager) {
+    this.sessionRepository = sessionRepository;
+    this.webSocketSessionManager = webSocketSessionManager;
+  }
 
-  void deleteSession(String sessionId);
+  public Session createNewSession(NewSessionRequest request, WebSocketSession webSocketSession) {
+    webSocketSessionManager.register(request.getId(), webSocketSession);
+    Session session = Session.builder()
+        .id(request.getId())
+        .deviceName(request.getDeviceName())
+        .deviceId(request.getDeviceId())
+        .ipAddress(request.getIpAddress())
+        .createdAt(DateTimeHelper.currentTimeMillis())
+        .build();
+    return sessionRepository.save(session);
+  }
 
-  void deleteAllSessions();
+  public List<Session> getAllSessions() {
+    List<Session> sessions = sessionRepository.findAll();
+    sessions.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+    return sessions;
+  }
 
-  void deleteSessionsByDeviceId(String deviceId);
+  public void deleteSession(String sessionId) {
+    webSocketSessionManager.remove(sessionId);
+    sessionRepository.deleteById(sessionId);
+  }
 
-  void updateLastActive(String sessionId, Long lastActiveTime);
+  public void deleteAllSessions() {
+    List<Session> sessions = getAllSessions();
+    for (Session session : sessions) {
+      deleteSession(session.getId());
+    }
+  }
 
-  Session getSessionByDeviceId(String deviceId);
+  public void deleteSessionsByDeviceId(String deviceId) {
+    List<Session> sessions = sessionRepository.findByDeviceId(deviceId);
+    for (Session session : sessions) {
+      deleteSession(session.getId());
+    }
+  }
 
-  void sendMessageToSession(String sessionId, String message);
+  public void updateLastActive(String sessionId, Long lastActiveTime) {
+    if (lastActiveTime == null) {
+      lastActiveTime = DateTimeHelper.currentTimeMillis();
+    }
+    Session session = sessionRepository.findById(sessionId).orElse(null);
+    if (session != null) {
+      session.setLastActive(lastActiveTime);
+      sessionRepository.save(session);
+    }
+  }
+
+  public Session getSessionByDeviceId(String deviceId) {
+    List<Session> sessions = sessionRepository.findByDeviceId(deviceId);
+    if (sessions.isEmpty()) {
+      return null;
+    }
+    return sessions.getFirst();
+  }
+
+  public void sendMessageToSession(String sessionId, String message) {
+    webSocketSessionManager.sendMessage(sessionId, message);
+  }
 
 }

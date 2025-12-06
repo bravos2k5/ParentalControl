@@ -1,10 +1,10 @@
-package com.bravos.parentalcontrol.socket.handler;
+package com.bravos.parentalcontrol.websocket.handler;
 
-import com.bravos.parentalcontrol.model.NewSessionRequest;
-import com.bravos.parentalcontrol.model.Session;
+import com.bravos.parentalcontrol.dto.request.NewSessionRequest;
+import com.bravos.parentalcontrol.entity.Session;
 import com.bravos.parentalcontrol.service.AccessService;
 import com.bravos.parentalcontrol.service.SessionService;
-import com.bravos.parentalcontrol.utils.DateTimeHelper;
+import com.bravos.parentalcontrol.util.DateTimeHelper;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -19,14 +19,10 @@ import java.util.concurrent.*;
 @Slf4j
 @Component
 public class ControlHandler extends TextWebSocketHandler {
-
   private final SessionService sessionService;
   private final AccessService accessService;
-
   private final Map<String, ScheduledFuture<?>> pingTasks = new ConcurrentHashMap<>();
-
   private final ScheduledExecutorService pingScheduler = Executors.newSingleThreadScheduledExecutor();
-
   private final ExecutorService virtualExecutor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().factory());
 
   public ControlHandler(SessionService sessionService, AccessService accessService) {
@@ -40,7 +36,7 @@ public class ControlHandler extends TextWebSocketHandler {
     String content = message.getPayload();
     if (content.startsWith("PASSWORD:")) {
       this.checkPasswordHandler(session, content);
-    } else if (content.startsWith("ping")) {
+    } else if (content.equalsIgnoreCase("ping")) {
       session.sendMessage(new TextMessage("pong"));
     } else if (content.startsWith("BLOCKED")) {
       this.blockedHandler(session);
@@ -135,5 +131,4 @@ public class ControlHandler extends TextWebSocketHandler {
     pingScheduler.shutdownNow();
     virtualExecutor.shutdownNow();
   }
-
 }

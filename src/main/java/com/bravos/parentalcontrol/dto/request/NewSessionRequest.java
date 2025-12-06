@@ -1,4 +1,4 @@
-package com.bravos.parentalcontrol.model;
+package com.bravos.parentalcontrol.dto.request;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -11,10 +11,9 @@ import static lombok.AccessLevel.PRIVATE;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = PRIVATE)
-public class TimeRequest {
-
+public class NewSessionRequest {
+  String id;
   String deviceId;
-
-  Integer seconds;
-
+  String deviceName;
+  String ipAddress;
 }

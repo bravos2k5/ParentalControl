@@ -1,4 +1,4 @@
-package com.bravos.parentalcontrol.filter;
+package com.bravos.parentalcontrol.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -17,7 +17,6 @@ import java.io.IOException;
 
 @Component
 public class AuthFilter extends OncePerRequestFilter {
-
   private final PasswordEncoder passwordEncoder;
 
   public AuthFilter(PasswordEncoder passwordEncoder) {
@@ -28,32 +27,28 @@ public class AuthFilter extends OncePerRequestFilter {
   protected void doFilterInternal(@NonNull HttpServletRequest request,
                                   @NonNull HttpServletResponse response,
                                   @NonNull FilterChain filterChain) throws ServletException, IOException {
-    if(request.getRequestURI().startsWith("/ws")) {
+    if (request.getRequestURI().startsWith("/ws")) {
       filterChain.doFilter(request, response);
       return;
     }
-
     String authHeader = request.getHeader("Authorization");
     if (authHeader == null) {
       response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
       return;
     }
     String token = authHeader.trim();
-
     if (!isValidPassword(token)) {
       response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
       return;
     }
-
     Authentication authentication = new TestingAuthenticationToken("admin", "xxx", "ROLE_ADMIN");
     authentication.setAuthenticated(true);
-
     SecurityContextHolder.setContext(new SecurityContextImpl(authentication));
     filterChain.doFilter(request, response);
   }
 
   private boolean isValidPassword(String token) {
-    if(token == null || token.isEmpty()) {
+    if (token == null || token.isEmpty()) {
       return false;
     }
     String hashedPassword = System.getenv("PARENTAL_CONTROL_PASSWORD_HASH");
@@ -62,5 +57,4 @@ public class AuthFilter extends OncePerRequestFilter {
     }
     return passwordEncoder.matches(token, hashedPassword);
   }
-
 }

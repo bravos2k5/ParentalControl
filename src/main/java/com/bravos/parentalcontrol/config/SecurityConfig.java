@@ -1,7 +1,7 @@
-package com.bravos.parentalcontrol.configuration;
+package com.bravos.parentalcontrol.config;
 
-import com.bravos.parentalcontrol.filter.AuthFilter;
-import com.bravos.parentalcontrol.filter.BenchmarkFilter;
+import com.bravos.parentalcontrol.security.AuthFilter;
+import com.bravos.parentalcontrol.security.BenchmarkFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -20,8 +20,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
-public class SecurityConfiguration {
-
+public class SecurityConfig {
   @Bean
   public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthFilter authFilter, BenchmarkFilter benchmarkFilter) {
     http.authorizeHttpRequests((requests) -> requests
@@ -39,7 +38,6 @@ public class SecurityConfiguration {
     return http.build();
   }
 
-
   @Bean
   public CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration httpConfig = new CorsConfiguration();
@@ -51,17 +49,14 @@ public class SecurityConfiguration {
     httpConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
     httpConfig.setAllowedHeaders(List.of("*"));
     httpConfig.setAllowCredentials(true);
-
     CorsConfiguration wsConfig = new CorsConfiguration();
     wsConfig.setAllowedOriginPatterns(List.of("*"));
     wsConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
     wsConfig.setAllowedHeaders(List.of("*"));
     wsConfig.setAllowCredentials(true);
-
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/ws/**", wsConfig);
     source.registerCorsConfiguration("/**", httpConfig);
     return source;
   }
-
 }

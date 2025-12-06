@@ -1,4 +1,4 @@
-package com.bravos.parentalcontrol.configuration;
+package com.bravos.parentalcontrol.config;
 
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.protocol.ProtocolVersion;
@@ -13,8 +13,7 @@ import org.springframework.data.redis.repository.configuration.EnableRedisReposi
 
 @Configuration
 @EnableRedisRepositories("com.bravos.parentalcontrol.repository")
-public class RedisConfiguration {
-
+public class RedisConfig {
   @Bean
   public RedisConnectionFactory connectionFactory() {
     ClientOptions options = ClientOptions.builder()
@@ -28,7 +27,7 @@ public class RedisConfiguration {
     redisConfig.setHostName(System.getenv("REDIS_HOST"));
     redisConfig.setPort(Integer.parseInt(System.getenv("REDIS_PORT")));
     redisConfig.setPassword(System.getenv("REDIS_PASSWORD"));
-    return new LettuceConnectionFactory(redisConfig,clientConfiguration);
+    return new LettuceConnectionFactory(redisConfig, clientConfiguration);
   }
 
   @Bean
@@ -37,5 +36,4 @@ public class RedisConfiguration {
     template.setConnectionFactory(redisConnectionFactory);
     return template;
   }
-
 }

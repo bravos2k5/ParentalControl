@@ -1,7 +1,7 @@
-package com.bravos.parentalcontrol.socket.configuration;
+package com.bravos.parentalcontrol.config;
 
-import com.bravos.parentalcontrol.socket.handler.ControlHandler;
-import com.bravos.parentalcontrol.socket.intercepter.ConnectInterceptor;
+import com.bravos.parentalcontrol.websocket.handler.ControlHandler;
+import com.bravos.parentalcontrol.websocket.interceptor.ConnectInterceptor;
 import lombok.NonNull;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
@@ -11,7 +11,6 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
-
   private final ConnectInterceptor connectInterceptor;
   private final ControlHandler controlHandler;
 
@@ -24,7 +23,6 @@ public class WebSocketConfig implements WebSocketConfigurer {
   public void registerWebSocketHandlers(@NonNull WebSocketHandlerRegistry registry) {
     registry.addHandler(controlHandler, "/ws/**")
         .setAllowedOrigins("*")
-        .addInterceptors(connectInterceptor)
-    ;
+        .addInterceptors(connectInterceptor);
   }
 }
